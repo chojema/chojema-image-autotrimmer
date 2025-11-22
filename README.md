@@ -1,0 +1,1 @@
+# chojema-image-autotrimmer
