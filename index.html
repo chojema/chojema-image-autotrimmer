@@ -124,6 +124,30 @@
       color: #374151;
     }
 
+    .color-control,
+    .radius-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #f9fafb;
+    }
+
+    .radius-options {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .radius-options label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 13px;
+    }
+
     label span {
       margin-left: 4px;
     }
@@ -300,6 +324,35 @@
             />
             <span id="thresholdLabelValue">25</span>
           </label>
+          <label class="color-control">
+            <input type="checkbox" id="transparentToggle" />
+            <span id="transparentLabel">투명 색상</span>
+            <input type="color" id="transparentColorInput" value="#ffffff" />
+          </label>
+          <div class="radius-group">
+            <span id="cornerRadiusLabel">모서리 곡률</span>
+            <div class="radius-options" id="cornerRadiusOptions">
+              <label>
+                <input
+                  type="radio"
+                  name="cornerRadius"
+                  value="2"
+                  checked
+                />
+                2px
+              </label>
+              <label>
+                <input type="radio" name="cornerRadius" value="4" /> 4px
+              </label>
+              <label>
+                <input type="radio" name="cornerRadius" value="8" /> 8px
+              </label>
+              <label>
+                <input type="radio" name="cornerRadius" value="12" />
+                12px
+              </label>
+            </div>
+          </div>
         </div>
       </div>
       <div class="status" id="status"></div>
@@ -351,6 +404,13 @@
     const thresholdLabelValue = document.getElementById("thresholdLabelValue");
     const langKoBtn = document.getElementById("langKoBtn");
     const langEnBtn = document.getElementById("langEnBtn");
+    const transparentToggle = document.getElementById("transparentToggle");
+    const transparentColorInput = document.getElementById("transparentColorInput");
+    const cornerRadiusOptions = document.querySelectorAll(
+      "input[name='cornerRadius']"
+    );
+    const cornerRadiusLabel = document.getElementById("cornerRadiusLabel");
+    const transparentLabel = document.getElementById("transparentLabel");
 
     const originalCtx = originalCanvas.getContext("2d");
     const croppedCtx = croppedCanvas.getContext("2d");
@@ -359,6 +419,8 @@
     let originalFileName = "";
     let lastTrimTime = null;
     let currentLang = "ko";
+    let baseCroppedImageData = null;
+    let baseCropSize = { width: 0, height: 0 };
 
     // 다국어 리소스
     const i18n = {
@@ -372,6 +434,8 @@
         downloadBtn: "결과 이미지 다운로드",
         marginLabel: "경계 여유(px)",
         thresholdLabel: "배경색 허용 오차",
+        transparentLabel: "투명 색상",
+        cornerRadiusLabel: "모서리 곡률",
         originalTitle: "원본 이미지",
         croppedTitle: "결과 이미지",
         statusLoaded: "이미지를 불러왔습니다. 자동 Trim을 실행할 수 있습니다.",
@@ -391,6 +455,8 @@
         downloadBtn: "Download result image",
         marginLabel: "Margin (px)",
         thresholdLabel: "Background tolerance",
+        transparentLabel: "Transparent color",
+        cornerRadiusLabel: "Corner radius",
         originalTitle: "Original image",
         croppedTitle: "Result image",
         statusLoaded: "Image loaded. You can run auto trim.",
@@ -417,6 +483,8 @@
       document.getElementById("downloadBtn").textContent = t.downloadBtn;
       document.getElementById("marginLabel").textContent = t.marginLabel;
       document.getElementById("thresholdLabel").textContent = t.thresholdLabel;
+      transparentLabel.textContent = t.transparentLabel;
+      cornerRadiusLabel.textContent = t.cornerRadiusLabel;
       document.getElementById("originalTitleText").textContent = t.originalTitle;
       document.getElementById("croppedTitleText").textContent = t.croppedTitle;
 
@@ -433,6 +501,12 @@
     // 허용 오차 라벨 업데이트
     thresholdInput.addEventListener("input", () => {
       thresholdLabelValue.textContent = thresholdInput.value;
+    });
+
+    transparentToggle.addEventListener("change", renderResult);
+    transparentColorInput.addEventListener("input", renderResult);
+    cornerRadiusOptions.forEach((option) => {
+      option.addEventListener("change", renderResult);
     });
 
     // 드래그 앤 드롭 처리
@@ -482,6 +556,8 @@
           loadedImage = img;
           originalFileName = file.name.replace(/\.[^.]+$/, "");
           lastTrimTime = null;
+          baseCroppedImageData = null;
+          baseCropSize = { width: 0, height: 0 };
 
           drawOriginal();
           statusEl.textContent = i18n[currentLang].statusLoaded;
@@ -507,6 +583,81 @@
       const dg = c1[1] - c2[1];
       const db = c1[2] - c2[2];
       return dr * dr + dg * dg + db * db;
+    }
+
+    function hexToRgb(hex) {
+      const sanitized = hex.replace("#", "");
+      const bigint = parseInt(sanitized, 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return [r, g, b];
+    }
+
+    function setBaseCroppedImageData(imageData, width, height) {
+      baseCroppedImageData = new ImageData(
+        new Uint8ClampedArray(imageData.data),
+        width,
+        height
+      );
+      baseCropSize = { width, height };
+    }
+
+    function getSelectedCornerRadius() {
+      const selected = Array.from(cornerRadiusOptions).find(
+        (opt) => opt.checked
+      );
+      return selected ? parseInt(selected.value, 10) : 0;
+    }
+
+    function applyRoundedMask(ctx, width, height, radius) {
+      if (radius <= 0) return;
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(width - r, 0);
+      ctx.quadraticCurveTo(width, 0, width, r);
+      ctx.lineTo(width, height - r);
+      ctx.quadraticCurveTo(width, height, width - r, height);
+      ctx.lineTo(r, height);
+      ctx.quadraticCurveTo(0, height, 0, height - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function renderResult() {
+      if (!baseCroppedImageData || baseCropSize.width === 0) return;
+
+      const { width, height } = baseCropSize;
+      const workingData = new ImageData(
+        new Uint8ClampedArray(baseCroppedImageData.data),
+        width,
+        height
+      );
+
+      if (transparentToggle.checked) {
+        const [tr, tg, tb] = hexToRgb(transparentColorInput.value);
+        const data = workingData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          if (data[i] === tr && data[i + 1] === tg && data[i + 2] === tb) {
+            data[i + 3] = 0;
+          }
+        }
+      }
+
+      croppedCanvas.width = width;
+      croppedCanvas.height = height;
+      croppedCtx.putImageData(workingData, 0, 0);
+
+      const radius = getSelectedCornerRadius();
+      if (radius > 0) {
+        applyRoundedMask(croppedCtx, width, height, radius);
+      }
     }
 
     function autoTrim() {
@@ -621,11 +772,10 @@
       // 모든 픽셀이 배경색과 같아 경계가 발견되지 않았다면 원본 유지
       if (top === 0 && bottom === h - 1 && left === 0 && right === w - 1) {
         statusEl.textContent = i18n[currentLang].statusNoContent;
-        croppedCanvas.width = w;
-        croppedCanvas.height = h;
-        croppedCtx.clearRect(0, 0, w, h);
-        croppedCtx.drawImage(originalCanvas, 0, 0);
         croppedMeta.textContent = `(${w} × ${h} px, 변경 없음)`;
+        const untouchedData = originalCtx.getImageData(0, 0, w, h);
+        setBaseCroppedImageData(untouchedData, w, h);
+        renderResult();
         lastTrimTime = new Date();
         downloadBtn.disabled = false;
         return;
@@ -647,11 +797,8 @@
         cropWidth,
         cropHeight
       );
-
-      croppedCanvas.width = cropWidth;
-      croppedCanvas.height = cropHeight;
-      croppedCtx.putImageData(croppedImageData, 0, 0);
-
+      setBaseCroppedImageData(croppedImageData, cropWidth, cropHeight);
+      renderResult();
       croppedMeta.textContent = `(${cropWidth} × ${cropHeight} px)`;
       statusEl.textContent = i18n[currentLang].statusTrimDone(
         left,
