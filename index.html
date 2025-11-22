@@ -152,6 +152,10 @@
       margin-left: 4px;
     }
 
+    .custom-radius-input {
+      width: 64px;
+    }
+
     input[type="number"],
     input[type="range"] {
       margin-left: 4px;
@@ -180,7 +184,7 @@
 
     canvas {
       max-width: 100%;
-      border-radius: 12px;
+      border-radius: 0;
       background: #f9fafb;
       border: 1px solid #e5e7eb;
     }
@@ -336,10 +340,13 @@
                 <input
                   type="radio"
                   name="cornerRadius"
-                  value="2"
+                  value="0"
                   checked
                 />
-                2px
+                없음
+              </label>
+              <label>
+                <input type="radio" name="cornerRadius" value="2" /> 2px
               </label>
               <label>
                 <input type="radio" name="cornerRadius" value="4" /> 4px
@@ -350,6 +357,23 @@
               <label>
                 <input type="radio" name="cornerRadius" value="12" />
                 12px
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="cornerRadius"
+                  value="custom"
+                  id="cornerRadiusCustom"
+                />
+                <input
+                  type="number"
+                  id="cornerRadiusCustomInput"
+                  class="custom-radius-input"
+                  min="0"
+                  max="200"
+                  placeholder="px"
+                />
+                px
               </label>
             </div>
           </div>
@@ -410,6 +434,10 @@
       "input[name='cornerRadius']"
     );
     const cornerRadiusLabel = document.getElementById("cornerRadiusLabel");
+    const cornerRadiusCustom = document.getElementById("cornerRadiusCustom");
+    const cornerRadiusCustomInput = document.getElementById(
+      "cornerRadiusCustomInput"
+    );
     const transparentLabel = document.getElementById("transparentLabel");
 
     const originalCtx = originalCanvas.getContext("2d");
@@ -507,6 +535,11 @@
     transparentColorInput.addEventListener("input", renderResult);
     cornerRadiusOptions.forEach((option) => {
       option.addEventListener("change", renderResult);
+    });
+
+    cornerRadiusCustomInput.addEventListener("input", () => {
+      cornerRadiusCustom.checked = true;
+      renderResult();
     });
 
     // 드래그 앤 드롭 처리
@@ -607,7 +640,14 @@
       const selected = Array.from(cornerRadiusOptions).find(
         (opt) => opt.checked
       );
-      return selected ? parseInt(selected.value, 10) : 0;
+      if (!selected) return 0;
+      if (selected.value === "custom") {
+        const customValue = parseInt(cornerRadiusCustomInput.value, 10);
+        return Number.isFinite(customValue) && customValue >= 0
+          ? customValue
+          : 0;
+      }
+      return parseInt(selected.value, 10);
     }
 
     function applyRoundedMask(ctx, width, height, radius) {
