@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="author" content="박철우; Chulwoo Park" />
+  <meta name="version" content="1.1" />
+  <title>Chojema Image AutoTrimmer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: #f5f5f7;
+      color: #111827;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      margin-bottom: 24px;
+    }
+
+    .panel {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      margin-bottom: 24px;
+    }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .upload-area.dragover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .upload-area input {
+      display: none;
+    }
+
+    .upload-area p {
+      margin: 8px 0 0;
+      color: #6b7280;
+      font-size: 14px;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-top: 16px;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+      box-shadow: 0 5px 15px rgba(37, 99, 235, 0.35);
+      transition: transform 0.1s ease, box-shadow 0.1s ease,
+        background 0.2s ease;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+      box-shadow: none;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: default;
+      box-shadow: none;
+      transform: none;
+    }
+
+    button:not(:disabled):hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
+      background: #1d4ed8;
+    }
+
+    button.secondary:not(:disabled):hover {
+      background: #d1d5db;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    label span {
+      margin-left: 4px;
+    }
+
+    input[type="number"],
+    input[type="range"] {
+      margin-left: 4px;
+    }
+
+    .canvas-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .canvas-block {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .canvas-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4b5563;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    canvas {
+      max-width: 100%;
+      border-radius: 12px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+    }
+
+    .meta {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .status {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #4b5563;
+    }
+
+    /* 상단 헤더 + 언어 전환 영역 */
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .lang-switcher {
+      display: flex;
+      gap: 8px;
+    }
+
+    .lang-btn.active {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 5px 15px rgba(37, 99, 235, 0.35);
+    }
+
+    /* 우측 하단 푸터 링크 스타일 */
+    .app-footer {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      font-size: 12px;
+      color: #6b7280;
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.85);
+      padding: 6px 12px;
+      border-radius: 999px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(6px);
+      transition: transform 0.1s ease, box-shadow 0.1s ease,
+        background 0.2s ease;
+    }
+
+    .app-footer:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.24);
+      background: #ffffff;
+    }
+
+    @media (max-width: 800px) {
+      .canvas-wrapper {
+        grid-template-columns: 1fr;
+      }
+
+      .header-row {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-row">
+      <div>
+        <h1 id="title">Chojema Image AutoTrimmer</h1>
+        <div class="subtitle" id="subtitle">
+          이미지 주변 여백을 제거하여 중심 객체 경계까지만 이미지를 자동으로 축소합니다.
+        </div>
+      </div>
+      <div class="lang-switcher">
+        <button
+          type="button"
+          class="lang-btn secondary active"
+          data-lang="ko"
+          id="langKoBtn"
+        >
+          한국어
+        </button>
+        <button
+          type="button"
+          class="lang-btn secondary"
+          data-lang="en"
+          id="langEnBtn"
+        >
+          English
+        </button>
+      </div>
+    </div>
+
+    <!-- 업로드 영역 -->
+    <div class="panel">
+      <div
+        class="upload-area"
+        id="uploadArea"
+        onclick="document.getElementById('fileInput').click()"
+      >
+        <input
+          type="file"
+          id="fileInput"
+          accept="image/*"
+        />
+        <strong id="uploadTitle">이미지 선택 또는 드래그 앤 드롭</strong>
+        <p id="uploadDesc">PNG, JPG 등 대부분의 이미지 형식을 지원합니다.</p>
+      </div>
+
+      <div class="btn-row">
+        <button id="trimBtn" disabled>자동 Trim 실행</button>
+        <button id="downloadBtn" class="secondary" disabled>
+          결과 이미지 다운로드
+        </button>
+        <div class="controls">
+          <label>
+            <span id="marginLabel">경계 여유(px)</span>
+            <input
+              type="number"
+              id="marginInput"
+              value="4"
+              min="0"
+              max="200"
+              style="width:70px"
+            />
+          </label>
+          <label>
+            <span id="thresholdLabel">배경색 허용 오차</span>
+            <input
+              type="range"
+              id="thresholdInput"
+              min="5"
+              max="100"
+              value="25"
+            />
+            <span id="thresholdLabelValue">25</span>
+          </label>
+        </div>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <!-- 캔버스 표시 영역 -->
+    <div class="panel">
+      <div class="canvas-wrapper">
+        <div class="canvas-block">
+          <div class="canvas-title">
+            <span id="originalTitleText">원본 이미지</span>
+            <span class="meta" id="originalMeta"></span>
+          </div>
+          <canvas id="originalCanvas"></canvas>
+        </div>
+        <div class="canvas-block">
+          <div class="canvas-title">
+            <span id="croppedTitleText">결과 이미지</span>
+            <span class="meta" id="croppedMeta"></span>
+          </div>
+          <canvas id="croppedCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 우측 하단 주석 -->
+  <a
+    href="https://cantips.com"
+    class="app-footer"
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    Chulwoo Park, <span id="currentYear"></span>
+  </a>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const uploadArea = document.getElementById("uploadArea");
+    const trimBtn = document.getElementById("trimBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const originalCanvas = document.getElementById("originalCanvas");
+    const croppedCanvas = document.getElementById("croppedCanvas");
+    const originalMeta = document.getElementById("originalMeta");
+    const croppedMeta = document.getElementById("croppedMeta");
+    const statusEl = document.getElementById("status");
+    const marginInput = document.getElementById("marginInput");
+    const thresholdInput = document.getElementById("thresholdInput");
+    const thresholdLabelValue = document.getElementById("thresholdLabelValue");
+    const langKoBtn = document.getElementById("langKoBtn");
+    const langEnBtn = document.getElementById("langEnBtn");
+
+    const originalCtx = originalCanvas.getContext("2d");
+    const croppedCtx = croppedCanvas.getContext("2d");
+
+    let loadedImage = null;
+    let originalFileName = "";
+    let lastTrimTime = null;
+    let currentLang = "ko";
+
+    // 다국어 리소스
+    const i18n = {
+      ko: {
+        title: "Chojema Image AutoTrimmer",
+        subtitle:
+          "이미지 주변 여백을 제거하여 중심 객체 경계까지만 이미지를 자동으로 축소합니다.",
+        uploadTitle: "이미지 선택 또는 드래그 앤 드롭",
+        uploadDesc: "PNG, JPG 등 대부분의 이미지 형식을 지원합니다.",
+        trimBtn: "자동 Trim 실행",
+        downloadBtn: "결과 이미지 다운로드",
+        marginLabel: "경계 여유(px)",
+        thresholdLabel: "배경색 허용 오차",
+        originalTitle: "원본 이미지",
+        croppedTitle: "결과 이미지",
+        statusLoaded: "이미지를 불러왔습니다. 자동 Trim을 실행할 수 있습니다.",
+        statusNoContent:
+          "배경과 다른 픽셀을 찾지 못했습니다. (이미지가 거의 단색이거나 내용이 없는 경우)",
+        statusTrimRunning: "자동 Trim 실행 중...",
+        statusTrimDone: (left, top, right, bottom) =>
+          `Trim 완료: (${left}, ${top}) ~ (${right}, ${bottom}) 영역을 잘라냈습니다.`,
+      },
+      en: {
+        title: "Chojema Image AutoTrimmer",
+        subtitle:
+          "Automatically trims surrounding margins so that the image fits tightly to the main object.",
+        uploadTitle: "Select image or drag & drop",
+        uploadDesc: "Supports PNG, JPG and most common image formats.",
+        trimBtn: "Run auto trim",
+        downloadBtn: "Download result image",
+        marginLabel: "Margin (px)",
+        thresholdLabel: "Background tolerance",
+        originalTitle: "Original image",
+        croppedTitle: "Result image",
+        statusLoaded: "Image loaded. You can run auto trim.",
+        statusNoContent:
+          "Could not find pixels different from the background (image is nearly solid or has no content).",
+        statusTrimRunning: "Running auto trim...",
+        statusTrimDone: (left, top, right, bottom) =>
+          `Trim completed: cropped area from (${left}, ${top}) to (${right}, ${bottom}).`,
+      },
+    };
+
+    function applyLanguage(lang) {
+      currentLang = lang;
+      const t = i18n[lang];
+
+      document.documentElement.lang = lang === "ko" ? "ko" : "en";
+      document.title = t.title;
+
+      document.getElementById("title").textContent = t.title;
+      document.getElementById("subtitle").textContent = t.subtitle;
+      document.getElementById("uploadTitle").textContent = t.uploadTitle;
+      document.getElementById("uploadDesc").textContent = t.uploadDesc;
+      document.getElementById("trimBtn").textContent = t.trimBtn;
+      document.getElementById("downloadBtn").textContent = t.downloadBtn;
+      document.getElementById("marginLabel").textContent = t.marginLabel;
+      document.getElementById("thresholdLabel").textContent = t.thresholdLabel;
+      document.getElementById("originalTitleText").textContent = t.originalTitle;
+      document.getElementById("croppedTitleText").textContent = t.croppedTitle;
+
+      // 언어 버튼 active 상태 갱신
+      if (lang === "ko") {
+        langKoBtn.classList.add("active");
+        langEnBtn.classList.remove("active");
+      } else {
+        langEnBtn.classList.add("active");
+        langKoBtn.classList.remove("active");
+      }
+    }
+
+    // 허용 오차 라벨 업데이트
+    thresholdInput.addEventListener("input", () => {
+      thresholdLabelValue.textContent = thresholdInput.value;
+    });
+
+    // 드래그 앤 드롭 처리
+    ["dragenter", "dragover"].forEach((eventName) => {
+      uploadArea.addEventListener(
+        eventName,
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadArea.classList.add("dragover");
+        },
+        false
+      );
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      uploadArea.addEventListener(
+        eventName,
+        (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          uploadArea.classList.remove("dragover");
+        },
+        false
+      );
+    });
+
+    uploadArea.addEventListener("drop", (e) => {
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) {
+        handleFile(file);
+      }
+    });
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (file && file.type.startsWith("image/")) {
+        handleFile(file);
+      }
+    });
+
+    function handleFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          loadedImage = img;
+          originalFileName = file.name.replace(/\.[^.]+$/, "");
+          lastTrimTime = null;
+
+          drawOriginal();
+          statusEl.textContent = i18n[currentLang].statusLoaded;
+          trimBtn.disabled = false;
+          downloadBtn.disabled = true;
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function drawOriginal() {
+      if (!loadedImage) return;
+      originalCanvas.width = loadedImage.width;
+      originalCanvas.height = loadedImage.height;
+      originalCtx.clearRect(0, 0, originalCanvas.width, originalCanvas.height);
+      originalCtx.drawImage(loadedImage, 0, 0);
+      originalMeta.textContent = `(${loadedImage.width} × ${loadedImage.height} px)`;
+    }
+
+    function getColorDistanceSq(c1, c2) {
+      const dr = c1[0] - c2[0];
+      const dg = c1[1] - c2[1];
+      const db = c1[2] - c2[2];
+      return dr * dr + dg * dg + db * db;
+    }
+
+    function autoTrim() {
+      if (!loadedImage) return;
+
+      const margin = parseInt(marginInput.value, 10) || 0;
+      const threshold = parseInt(thresholdInput.value, 10) || 25;
+
+      drawOriginal();
+
+      const w = originalCanvas.width;
+      const h = originalCanvas.height;
+      const imageData = originalCtx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+
+      // 1. 네 모서리 색상을 샘플링하여 배경색 추정
+      function getPixel(x, y) {
+        const idx = (y * w + x) * 4;
+        return [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+      }
+
+      const corners = [
+        getPixel(0, 0),
+        getPixel(w - 1, 0),
+        getPixel(0, h - 1),
+        getPixel(w - 1, h - 1),
+      ];
+
+      const bgColor = [
+        Math.round(
+          (corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4
+        ),
+        Math.round(
+          (corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4
+        ),
+        Math.round(
+          (corners[0][2] + corners[1][2] + corners[2][2] + corners[3][2]) / 4
+        ),
+        Math.round(
+          (corners[0][3] + corners[1][3] + corners[2][3] + corners[3][3]) / 4
+        ),
+      ];
+
+      const thresholdSq = threshold * threshold;
+
+      let top = 0,
+        bottom = h - 1,
+        left = 0,
+        right = w - 1;
+
+      let found = false;
+
+      // 2. 위쪽에서 아래로 스캔
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const pixel = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+          if (getColorDistanceSq(pixel, bgColor) > thresholdSq) {
+            top = y;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      // 3. 아래쪽에서 위로 스캔
+      found = false;
+      for (let y = h - 1; y >= 0; y--) {
+        for (let x = 0; x < w; x++) {
+          const idx = (y * w + x) * 4;
+          const pixel = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+          if (getColorDistanceSq(pixel, bgColor) > thresholdSq) {
+            bottom = y;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      // 4. 왼쪽에서 오른쪽으로 스캔
+      found = false;
+      for (let x = 0; x < w; x++) {
+        for (let y = 0; y < h; y++) {
+          const idx = (y * w + x) * 4;
+          const pixel = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+          if (getColorDistanceSq(pixel, bgColor) > thresholdSq) {
+            left = x;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      // 5. 오른쪽에서 왼쪽으로 스캔
+      found = false;
+      for (let x = w - 1; x >= 0; x--) {
+        for (let y = 0; y < h; y++) {
+          const idx = (y * w + x) * 4;
+          const pixel = [data[idx], data[idx + 1], data[idx + 2], data[idx + 3]];
+          if (getColorDistanceSq(pixel, bgColor) > thresholdSq) {
+            right = x;
+            found = true;
+            break;
+          }
+        }
+        if (found) break;
+      }
+
+      // 모든 픽셀이 배경색과 같아 경계가 발견되지 않았다면 원본 유지
+      if (top === 0 && bottom === h - 1 && left === 0 && right === w - 1) {
+        statusEl.textContent = i18n[currentLang].statusNoContent;
+        croppedCanvas.width = w;
+        croppedCanvas.height = h;
+        croppedCtx.clearRect(0, 0, w, h);
+        croppedCtx.drawImage(originalCanvas, 0, 0);
+        croppedMeta.textContent = `(${w} × ${h} px, 변경 없음)`;
+        lastTrimTime = new Date();
+        downloadBtn.disabled = false;
+        return;
+      }
+
+      // 6. 여유(margin) 적용
+      top = Math.max(0, top - margin);
+      left = Math.max(0, left - margin);
+      bottom = Math.min(h - 1, bottom + margin);
+      right = Math.min(w - 1, right + margin);
+
+      const cropWidth = right - left + 1;
+      const cropHeight = bottom - top + 1;
+
+      // 7. 크롭 수행
+      const croppedImageData = originalCtx.getImageData(
+        left,
+        top,
+        cropWidth,
+        cropHeight
+      );
+
+      croppedCanvas.width = cropWidth;
+      croppedCanvas.height = cropHeight;
+      croppedCtx.putImageData(croppedImageData, 0, 0);
+
+      croppedMeta.textContent = `(${cropWidth} × ${cropHeight} px)`;
+      statusEl.textContent = i18n[currentLang].statusTrimDone(
+        left,
+        top,
+        right,
+        bottom
+      );
+      lastTrimTime = new Date();
+      downloadBtn.disabled = false;
+    }
+
+    trimBtn.addEventListener("click", () => {
+      statusEl.textContent = i18n[currentLang].statusTrimRunning;
+      setTimeout(autoTrim, 10); // UI 갱신을 위해 약간 딜레이
+    });
+
+    function formatTimestamp(date) {
+      const pad = (n) => String(n).padStart(2, "0");
+      const year = date.getFullYear();
+      const month = pad(date.getMonth() + 1);
+      const day = pad(date.getDate());
+      const hour = pad(date.getHours());
+      const minute = pad(date.getMinutes());
+      const second = pad(date.getSeconds());
+      return `${year}-${month}-${day}_${hour}-${minute}-${second}`;
+    }
+
+    downloadBtn.addEventListener("click", () => {
+      if (!croppedCanvas.width || !croppedCanvas.height) return;
+      const link = document.createElement("a");
+      const baseName = originalFileName || "trimmed-image";
+      const ts = lastTrimTime || new Date();
+      const timestampStr = formatTimestamp(ts);
+
+      // 예: 원본파일명-2025-11-13_19-50-43.png
+      link.download = `${baseName}-${timestampStr}.png`;
+      link.href = croppedCanvas.toDataURL("image/png");
+      link.click();
+    });
+
+    // 현재 연도 자동 표시(예: 2025)
+    const yearSpan = document.getElementById("currentYear");
+    if (yearSpan) {
+      yearSpan.textContent = new Date().getFullYear();
+    }
+
+    // 언어 버튼 이벤트
+    langKoBtn.addEventListener("click", () => applyLanguage("ko"));
+    langEnBtn.addEventListener("click", () => applyLanguage("en"));
+
+    // 초기 언어 설정
+    applyLanguage("ko");
+  </script>
+</body>
+</html>
